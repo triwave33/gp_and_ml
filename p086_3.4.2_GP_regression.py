@@ -31,7 +31,7 @@ yy = K_inv.dot(y_train)
 # test data
 M =100
 x_test = np.linspace (-5,3,M)
-k = [[rbf(ix,jx) + theta3 if i==j else rbf(ix,jx) \
+k = [[rbf(ix,jx) + theta3 if \
         for i,ix in enumerate(x_test)] for j,jx in enumerate(x_train)]
 k = np.array(k).reshape((N,M))
 
