@@ -8,20 +8,18 @@ import glob
 
 
 ## define kernel function 
-def rbf(x, x_dash,  theta1, theta2):
-    return theta1 * np.exp(-1* ((x-x_dash)**2)/theta2) 
+def rbf(x, x_dash,  tau, sigma):
+    return np.exp(tau) * np.exp(-1* ((x-x_dash)**2)/np.exp(theta2))
 
 ## define gradient function
 def dk_dTAU(x, x_dash, n, n_dash,  tau, sigma, eta):
     if n == n_dash:
-        return rbf(x, x_dash, theta1=np.exp(tau), theta2=np.exp(sigma)) - np.exp(eta)
+        return rbf(x, x_dash, tau, sigma) - np.exp(eta)
     else:
-        return rbf(x, x_dash, theta1=np.exp(tau), theta2=np.exp(sigma))
+        return rbf(x, x_dash, tau, sigma)
 
 def dk_dSIGMA(x,x_dash,n,n_dash,tau,sigma,eta):
-    k = rbf(x,x_dash,theta1=np.exp(tau), theta2=np.exp(sigma))
-
-
+    k = rbf(x,x_dash,tau, sigma)
     if n ==n_dash:
         k -=  np.exp(eta)
     return k * np.exp(-1*sigma)*((x - x_dash)**2)
@@ -41,11 +39,15 @@ def dL_dTHETA(K_THETA, dk_dTHETA, y):
 
 # whole Gaussian processs
 def gp_reg(x_train, y_train, x_test, tau, sigma, eta):
+    theta1 = np.exp(tau)
+    theta2 = np.exp(sigma)
+    theta3 = np.exp(eta)
 
 
     N = len(x_train)
     M = len(x_test)
     # add Gaussian noise
+    #K = [[rbf(ix,jx,tau,sigma) + eta if i==j else rbf(ix,jx, tau,sigma) \
     K = [[rbf(ix,jx,tau,sigma) + eta if i==j else rbf(ix,jx, tau,sigma) \
             for i,ix in enumerate(x_train)] for j,jx in enumerate(x_train)]
     K = np.array(K).reshape((N,N))
@@ -56,12 +58,10 @@ def gp_reg(x_train, y_train, x_test, tau, sigma, eta):
 
     detK = LA.det(K)
 
-    print("detK: %.4e" % detK)
+    #print("detK: %.4e" % detK)
 
     likelifood = -1. * y_train.dot(yy) - np.log(detK)
 
-
-    
     
     k = [[rbf(ix,jx,tau,sigma)  \
             for i,ix in enumerate(x_test)] for j,jx in enumerate(x_train)]
@@ -109,17 +109,18 @@ y_sampler = coef * x_sampler + np.sin(x_sampler) + np.random.normal(size=N) * ep
 
 ## initial parameter value
 # parameter of kernel function
-theta1 = 20000, #0.5
-theta2 = 20000, #0.5
-theta3 = 10., #0.1
+theta1 = np.random.uniform(0,2) #0.5
+theta2 = np.random.uniform(0,2) #0.5
+theta3 = np.random.uniform(0,2) #0.1
 tau = np.log(theta1)
 sigma = np.log(theta2)
 eta = np.log(theta3)
 
-lr = 1e-3 # learning rate
+lr = 1e-4 # learning rate
 
-num_minibatch = 10
-epoch =100
+num_minibatch = 10 # N for fullbatch, <N for minibatch
+save_interval = 20
+epoch =200
 
 
 for e in range(epoch):
@@ -141,31 +142,32 @@ for e in range(epoch):
             (e, likelifood, tau, sigma, eta))
 
 
-    plt.scatter(x_sampler, y_sampler, marker='x') # plot of train data
-    plt.plot(x_test, mu, c='Orange') # predictive line using GP regression
-    plt.plot(x_test, coef * x_test + np.sin(x_test),'--', c='k') # ground truth
-    plt.fill_between(x_test, mu-2 *var_diag, mu+2*var_diag, color='grey', alpha=.4)
-    plt.title("N: {}".format(e))
-    plt.xlim(0,high_end)
-    plt.xlim(0,high_end)
+    if (epoch % save_interval == 0):
+        plt.scatter(x_sampler, y_sampler, marker='x') # plot of train data
+        plt.plot(x_test, mu, c='Orange') # predictive line using GP regression
+        plt.plot(x_test, coef * x_test + np.sin(x_test),'--', c='k') # ground truth
+        plt.fill_between(x_test, mu-2 *var_diag, mu+2*var_diag, color='grey', alpha=.4)
+        plt.title("N: {}".format(e))
+        plt.xlim(0,high_end)
+        plt.xlim(0,high_end)
 
-    plt.ylim(-1.5,4)
+        plt.ylim(-1.5,4)
 
 
-    plt.savefig("images/gp_process_%03d.png" % e)
-    plt.close()
+        plt.savefig("images/gp_regression_grad_%03d.png" % e)
+        plt.close()
 
 images = []
-files = glob.glob("images/gp_process*.png")
+files = glob.glob("images/gp_regression_grad*.png")
 files.sort()
 #
 for f in files:
     im = Image.open(f)
     images.append(im)
 
-images[0].save('gp_process_grad.gif',\
+images[0].save('gp_regression_grad.gif',\
                save_all=True, append_images=images[1:],\
-			   optimize=False, duration=1000, loop=0)
+               optimize=False, duration=100, loop=0)
 
 
 
