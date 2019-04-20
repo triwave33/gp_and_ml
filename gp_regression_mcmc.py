@@ -58,7 +58,10 @@ def next(x, x_train, y_train, x_test,sigma0, sigma1):
         x_new[1] = x[1] + np.random.normal(0, sigma1)
         lf,mu,var,var_diag,K = gp_reg(x_train, y_train, x_test, 1, x[0], x[1])
         lf_new,mu_new,var_new,var_diag_new,K_new = gp_reg(x_train, y_train, x_test, 1, x_new[0], x_new[1])
+        print("lf: %.3e, lf_new: %.3e" % (lf, lf_new))
         if np.random.uniform() <= min(lf_new/lf, 1):
+        #if (lf_new > lf ):
+            print('mcmc done') 
             return lf_new,x_new, mu_new, var_diag_new
 
 ## make ground truth data
@@ -75,13 +78,13 @@ y_sampler = coef * x_sampler + np.sin(x_sampler) + np.random.normal(size=N) * ep
 theta1 = 1, #0.5
 x = [0.5, 0.5] #sigma, eta
 sigma0 = 0.03
-sigma1 = 0.003
+sigma1 = 0.03
 
 
 num_minibatch = 10 # N for fullbatch, <N for minibatch
 save_interval = 5
 
-SAMPLE = 3000
+SAMPLE = 1000
 BURNIN = 100
 
 # burn in
@@ -108,14 +111,14 @@ for i in range(0, SAMPLE):
 
 fig = plt.figure(figsize=(6,9))
 
-plt.subplot(311)
+plt.subplot(411)
 
 plt.plot(burn_x, burn_y, marker = 'x', markersize=1)
 plt.plot(sample_x, sample_y, marker = 'o', markersize=1)
 plt.xlabel('sigma')
 plt.ylabel('eta')
 
-plt.subplot(312)
+plt.subplot(412)
 plt.scatter(x_sampler, y_sampler, marker='x') # plot of train data
 plt.plot(x_test, mu, c='Orange') # predictive line using GP regression
 plt.plot(x_test, coef * x_test + np.sin(x_test),'--', c='k') # ground truth
@@ -126,11 +129,19 @@ plt.xlim(0,high_end)
 #
 plt.ylim(-1.5,4)
 
-plt.subplot(313)
+plt.subplot(413)
 plt.plot(likelifood_array)
 plt.xlabel("step")
 plt.xlabel("likelifood")
 plt.savefig("gp_mcmc.png")
+
+plt.subplot(414)
+plt.plot(sample_x, c='Orange', label='theta2') # predictive line using GP regression
+plt.plot(sample_y, c='b', label='theta3') # predictive line using GP regression
+plt.xlabel("step")
+plt.xlabel("likelifood")
+plt.savefig("gp_mcmc.png")
+
 
 #
 #
