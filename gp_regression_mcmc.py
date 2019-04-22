@@ -40,7 +40,7 @@ def gp_reg(x_train, y_train, x_test, tau, sigma, eta):
             for i,ix in enumerate(x_test)] for j,jx in enumerate(x_train)]
     k = np.array(k).reshape((N,M))
 
-    s = [[rbf(ix,jx,theta1,theta2) + theta3 if i==j else rbf(ix,jx,theta1,theta2) \
+    s = [[rbf(ix,jx,theta1,theta2)  \
             for i,ix in enumerate(x_test)] for j,jx in enumerate(x_test)]
     s = np.array(s).reshape((M,M))
 
@@ -56,36 +56,42 @@ def next(x, x_train, y_train, x_test,sigma0, sigma1):
         x_new = [0,0]
         x_new[0] = x[0] + np.random.normal(0, sigma0)
         x_new[1] = x[1] + np.random.normal(0, sigma1)
-        lf,mu,var,var_diag,K = gp_reg(x_train, y_train, x_test, 1, x[0], x[1])
-        lf_new,mu_new,var_new,var_diag_new,K_new = gp_reg(x_train, y_train, x_test, 1, x_new[0], x_new[1])
-        print("lf: %.3e, lf_new: %.3e" % (lf, lf_new))
+        lf_log,mu,var,var_diag,K = gp_reg(x_train, y_train, x_test, 0, x[0], x[1])
+        lf_new_log,mu_new,var_new,var_diag_new,K_new = gp_reg(x_train, y_train, x_test, 0, x_new[0], x_new[1])
+        lf =np.exp(lf_log)
+        lf_new =np.exp(lf_new_log)
+        print("  lf: %.3e, lf_new: %.3e, p: %.2f" % (lf, lf_new, lf_new/lf))
+        
         if np.random.uniform() <= min(lf_new/lf, 1):
         #if (lf_new > lf ):
-            print('mcmc done') 
-            return lf_new,x_new, mu_new, var_diag_new
+            #print('    mcmc setp proceed') 
+            return lf_new, x_new, mu_new, var_diag_new
+        #else:
+            #print('    discarded')
 
 ## make ground truth data
 N = 10
 high_end = 5
 eps = 0.3
 coef = 0.5
-x_test = np.linspace(0,high_end,200)
+x_test = np.linspace(0,high_end,50)
 x_sampler = np.random.rand(N) * high_end # [0,30]
 y_sampler = coef * x_sampler + np.sin(x_sampler) + np.random.normal(size=N) * eps
 
 ## initial parameter value
 # parameter of kernel function
 theta1 = 1, #0.5
-x = [0.5, 0.5] #sigma, eta
-sigma0 = 0.03
-sigma1 = 0.03
+#x = [0.5, 0.5] #sigma, eta
+x = np.random.uniform(-0,2, size=2)
+sigma0 = 0.03 
+sigma1 = 0.08
 
 
 num_minibatch = 10 # N for fullbatch, <N for minibatch
-save_interval = 5
+save_interval = 20
 
-SAMPLE = 1000
-BURNIN = 100
+SAMPLE = 500
+BURNIN = 0
 
 # burn in
 burn_x = np.zeros(BURNIN)
@@ -107,58 +113,57 @@ for i in range(0, SAMPLE):
     sample_x[i] = x[0]
     sample_y[i] = x[1]
     likelifood_array[i+BURNIN] = lf
+    if (i % save_interval==0):
 
-
-fig = plt.figure(figsize=(6,9))
-
-plt.subplot(411)
-
-plt.plot(burn_x, burn_y, marker = 'x', markersize=1)
-plt.plot(sample_x, sample_y, marker = 'o', markersize=1)
-plt.xlabel('sigma')
-plt.ylabel('eta')
-
-plt.subplot(412)
-plt.scatter(x_sampler, y_sampler, marker='x') # plot of train data
-plt.plot(x_test, mu, c='Orange') # predictive line using GP regression
-plt.plot(x_test, coef * x_test + np.sin(x_test),'--', c='k') # ground truth
-plt.fill_between(x_test, mu-2 *var_diag, mu+2*var_diag, color='grey', alpha=.4)
-#plt.title("N: {}".format(e))
-plt.xlim(0,high_end)
-plt.xlim(0,high_end)
-#
-plt.ylim(-1.5,4)
-
-plt.subplot(413)
-plt.plot(likelifood_array)
-plt.xlabel("step")
-plt.xlabel("likelifood")
-plt.savefig("gp_mcmc.png")
-
-plt.subplot(414)
-plt.plot(sample_x, c='Orange', label='theta2') # predictive line using GP regression
-plt.plot(sample_y, c='b', label='theta3') # predictive line using GP regression
-plt.xlabel("step")
-plt.xlabel("likelifood")
-plt.savefig("gp_mcmc.png")
-
+        fig = plt.figure(figsize=(6,9))
+        
+        plt.subplot(411)
+        
+        plt.plot(sample_x, sample_y, marker = 'o', markersize=1)
+        plt.xlabel('sigma')
+        plt.ylabel('eta')
+        
+        plt.subplot(412)
+        plt.scatter(x_sampler, y_sampler, marker='x') # plot of train data
+        plt.plot(x_test, mu, c='Orange') # predictive line using GP regression
+        plt.plot(x_test, coef * x_test + np.sin(x_test),'--', c='k') # ground truth
+        plt.fill_between(x_test, mu-2 *var_diag, mu+2*var_diag, color='grey', alpha=.4)
+        #plt.title("N: {}".format(e))
+        plt.xlim(0,high_end)
+        plt.xlim(0,high_end)
+        #
+        plt.ylim(-1.5,4)
+        
+        plt.subplot(413)
+        plt.plot(likelifood_array)
+        plt.xlabel("step")
+        plt.xlabel("likelifood")
+        
+        plt.subplot(414)
+        plt.plot(sample_x, c='Orange', label='theta2') # predictive line using GP regression
+        plt.plot(sample_y, c='b', label='theta3') # predictive line using GP regression
+        plt.xlabel("step")
+        plt.ylabel("param")
+        plt.savefig("images/gp_mcmc_%04d.png" % i)
+        plt.close()
+    
 
 #
 #
 #plt.savefig("images/gp_regression_grad_%03d.png" % e)
 #plt.close()
 
-#images = []
-#files = glob.glob("images/gp_regression_grad*.png")
-#files.sort()
-##
-#for f in files:
-#    im = Image.open(f)
-#    images.append(im)
+images = []
+files = glob.glob("images/gp_mcmc*.png")
+files.sort()
 #
-#images[0].save('gp_regression_grad.gif',\
-#               save_all=True, append_images=images[1::save_interval],\
-#			   optimize=False, duration=1000, loop=0)
+for f in files:
+    im = Image.open(f)
+    images.append(im)
+
+images[0].save('gp_mcmc.gif',\
+               save_all=True, append_images=images[1:],\
+			   optimize=False, duration=1000, loop=0)
 
 
 
