@@ -2,9 +2,9 @@ import numpy as np
 #import matplotlib 
 #matplotlib.use('agg')
 import scipy.linalg as LA
-#import matplotlib.pyplot as plt
-#from PIL import Image, ImageDraw
-#import glob
+import matplotlib.pyplot as plt
+from PIL import Image, ImageDraw
+import glob
 
 
 ## define kernel function 
@@ -23,19 +23,23 @@ def gp_reg(x_train, y_train, x_induce, x_test, tau, sigma, eta):
     S = len(x_test)
     # add Gaussian noise
     #K = [[rbf(ix,jx,tau,sigma) + eta if i==j else rbf(ix,jx, tau,sigma) \
+    
+    #print("K.shape {}".format(K.shape))
+    K = [[rbf(ix,jx,theta1,theta2) + theta3 if i==j else rbf(ix,jx,theta1,theta2) \
+            for i,ix in enumerate(x_train)] for j,jx in enumerate(x_train)]
+    K = np.array(K).reshape((N,N))
+    #print("K.shape {}".format(K.shape))
+    K_inv = LA.inv(K)
+    yy = K_inv.dot(y_train)
+    detK = LA.det(K)
+    #print("detK: %.4e" % detK)
+    likelifood = -1. * y_train.dot(yy) - np.log(detK)
+
+
+    # for induced variable
     K_NN = [[rbf(ix,jx,theta1,theta2) + theta3 if i==j else 0 \
             for i,ix in enumerate(x_train)] for j,jx in enumerate(x_train)]
     K_NN = np.array(K_NN).reshape((N,N))
-    #print("K.shape {}".format(K.shape))
-
-    K_inv = LA.inv(K_NN)
-    yy = K_inv.dot(y_train)
-
-    detK = LA.det(K_NN)
-
-    #print("detK: %.4e" % detK)
-
-    likelifood = -1. * y_train.dot(yy) - np.log(detK)
 
     K_NM = [[rbf(ix,jx,theta1,theta2)  \
             for i,ix in enumerate(x_induce)] for j,jx in enumerate(x_train)]
@@ -122,15 +126,15 @@ x_induce = np.linspace(lowside, highside, M)
 # parameter of kernel function
 theta1 = 1, #0.5
 #x = [0.5, 0.5] #sigma, eta
-x = np.random.uniform(-0,1, size=2)
+x = np.random.uniform(-0,2, size=2)
 sigma0 = 0.03 
 sigma1 = 0.08
 
 
-num_minibatch = 10 # N for fullbatch, <N for minibatch
-save_interval = 20
+num_minibatch = N # N for fullbatch, <N for minibatch
+save_interval = 50
 
-SAMPLE = 500
+SAMPLE = 2000
 BURNIN = 0
 
 # burn in
@@ -153,58 +157,67 @@ for i in range(0, SAMPLE):
     sample_x[i] = x[0]
     sample_y[i] = x[1]
     likelifood_array[i+BURNIN] = lf
-#    if (i % save_interval==0):
-#
-#        fig = plt.figure(figsize=(6,9))
-#        
-#        plt.subplot(411)
-#        
-#        plt.plot(sample_x, sample_y, marker = 'o', markersize=1)
-#        plt.xlabel('sigma')
-#        plt.ylabel('eta')
-#        
-#        plt.subplot(412)
-#        plt.scatter(x_sampler, y_sampler, marker='x') # plot of train data
-#        plt.plot(x_test, mu, c='Orange') # predictive line using GP regression
-#        plt.plot(x_test, coef * x_test + np.sin(x_test),'--', c='k') # ground truth
-#        plt.fill_between(x_test, mu-2 *var_diag, mu+2*var_diag, color='grey', alpha=.4)
-#        #plt.title("N: {}".format(e))
-#        plt.xlim(0,high_end)
-#        plt.xlim(0,high_end)
-#        #
-#        plt.ylim(-1.5,4)
-#        
-#        plt.subplot(413)
-#        plt.plot(likelifood_array)
-#        plt.xlabel("step")
-#        plt.xlabel("likelifood")
-#        
-#        plt.subplot(414)
-#        plt.plot(sample_x, c='Orange', label='theta2') # predictive line using GP regression
-#        plt.plot(sample_y, c='b', label='theta3') # predictive line using GP regression
-#        plt.xlabel("step")
-#        plt.ylabel("param")
-#        plt.savefig("images/gp_mcmc_%04d.png" % i)
-#        plt.close()
-#    
-#
-##
-##
-##plt.savefig("images/gp_regression_grad_%03d.png" % e)
-##plt.close()
-#
-#images = []
-#files = glob.glob("images/gp_mcmc*.png")
-#files.sort()
-##
-#for f in files:
-#    im = Image.open(f)
-#    images.append(im)
-#
-#images[0].save('gp_mcmc.gif',\
-#               save_all=True, append_images=images[1:],\
-#			   optimize=False, duration=1000, loop=0)
+    if (i % save_interval==0):
+
+        fig = plt.figure(figsize=(6,9))
+        
+        plt.subplot(411)
+        
+        plt.plot(sample_x[0], sample_y[0], marker = 'x', markersize=10, c='r')
+        plt.plot(sample_x[:i], sample_y[:i], marker = 'o', markersize=1)
+        plt.xlabel('sigma')
+        plt.ylabel('eta')
+        plt.title('mcmc induced variable walking')
+        
+        plt.subplot(412)
+        plt.scatter(x_sampler, y_sampler, marker='x', label='sample') # plot of train data
+        plt.plot(x_test, mu, c='Orange', label='prediction') # predictive line using GP regression
+        plt.plot(x_test, coef * x_test + np.sin(x_test),'--', c='k',label='answer') # ground truth
+        plt.fill_between(x_test, mu-2 *var_diag, mu+2*var_diag, color='grey', alpha=.4)
+        plt.scatter(x_induce, np.zeros_like(x_induce), marker='o', label='induced var.')
+        #plt.title("N: {}".format(e))
+        plt.xlim(0,high_end)
+        plt.xlim(0,high_end)
+        #
+        plt.ylim(-1.5,4)
+        plt.xlabel('x')
+        plt.xlabel('y')
+        plt.title('Gaussian process regression')
+        
+        plt.subplot(413)
+        plt.plot(likelifood_array[:i])
+        plt.xlabel("step")
+        plt.ylabel("likelifood")
+        plt.xlim(0,SAMPLE)
+        
+        plt.subplot(414)
+        plt.plot(sample_x[:i], c='Orange', label='theta2') # predictive line using GP regression
+        plt.plot(sample_y[:i], c='b', label='theta3') # predictive line using GP regression
+        plt.xlabel("step")
+        plt.ylabel("param")
+        plt.savefig("images/gp_hojo_mcmc_%04d.png" % i)
+        plt.legend(loc=2)
+        plt.xlim(0,SAMPLE)
+        plt.close()
+    
+
 #
 #
+#plt.savefig("images/gp_regression_grad_%03d.png" % e)
+#plt.close()
+
+images = []
+files = glob.glob("images/gp_hojo_mcmc*.png")
+files.sort()
+#
+for f in files:
+    im = Image.open(f)
+    images.append(im)
+
+images[0].save('gp_hojo_mcmc.gif',\
+               save_all=True, append_images=images[1:],\
+			   optimize=False, duration=200, loop=0)
+
+
 
 
