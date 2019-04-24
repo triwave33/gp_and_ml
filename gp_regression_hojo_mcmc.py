@@ -22,6 +22,32 @@ def gp_reg(x_train, y_train, x_induce, x_test, tau, sigma, eta):
     N = len(x_train)
     M = len(x_induce)
     S = len(x_test)
+<<<<<<< HEAD
+=======
+    # add Gaussian noise
+    #K = [[rbf(ix,jx,tau,sigma) + eta if i==j else rbf(ix,jx, tau,sigma) \
+    
+    #print("K.shape {}".format(K.shape))
+    K = [[rbf(ix,jx,theta1,theta2) + theta3 if i==j else rbf(ix,jx,theta1,theta2) \
+            for i,ix in enumerate(x_train)] for j,jx in enumerate(x_train)]
+    K = np.array(K).reshape((N,N))
+    #print("K.shape {}".format(K.shape))
+    K_inv = LA.inv(K)
+    yy = K_inv.dot(y_train)
+    detK = LA.det(K)
+    #print("detK: %.4e" % detK)
+    likelifood = -1. * y_train.dot(yy) - np.log(detK)
+
+
+    # for induced variable
+    K_NN = [[rbf(ix,jx,theta1,theta2) + theta3 if i==j else 0 \
+            for i,ix in enumerate(x_train)] for j,jx in enumerate(x_train)]
+    K_NN = np.array(K_NN).reshape((N,N))
+
+    K_NM = [[rbf(ix,jx,theta1,theta2)  \
+            for i,ix in enumerate(x_induce)] for j,jx in enumerate(x_train)]
+    K_NM = np.array(K_NM).reshape((N,M))
+>>>>>>> 6942b08d6c7e590e266e2f63d896d384426dcbc5
 
     if(mode == "induce"):
         # add Gaussian noise
@@ -164,10 +190,17 @@ sigma0 = 0.03
 sigma1 = 0.08
 
 
+<<<<<<< HEAD
 num_minibatch = N # N for fullbatch, <N for minibatch NOTE not used
 save_interval = 20
 
 SAMPLE = 1000
+=======
+num_minibatch = N # N for fullbatch, <N for minibatch
+save_interval = 50
+
+SAMPLE = 2000
+>>>>>>> 6942b08d6c7e590e266e2f63d896d384426dcbc5
 BURNIN = 0
 
 # burn in
@@ -196,6 +229,7 @@ for i in range(0, SAMPLE):
         
         plt.subplot(411)
         
+<<<<<<< HEAD
         plt.plot(sample_x, sample_y, marker = 'o', markersize=1)
         plt.xlabel('sigma')
         plt.ylabel('eta')
@@ -205,11 +239,26 @@ for i in range(0, SAMPLE):
         plt.plot(x_test, mu, c='Orange') # predictive line using GP regression
         plt.plot(x_test, coef * x_test + np.sin(x_test),'--', c='k') # ground truth
         plt.fill_between(x_test, mu-2 *var_diag, mu+2*var_diag, color='grey', alpha=.4)
+=======
+        plt.plot(sample_x[0], sample_y[0], marker = 'x', markersize=10, c='r')
+        plt.plot(sample_x[:i], sample_y[:i], marker = 'o', markersize=1)
+        plt.xlabel('sigma')
+        plt.ylabel('eta')
+        plt.title('mcmc induced variable walking')
+        
+        plt.subplot(412)
+        plt.scatter(x_sampler, y_sampler, marker='x', label='sample') # plot of train data
+        plt.plot(x_test, mu, c='Orange', label='prediction') # predictive line using GP regression
+        plt.plot(x_test, coef * x_test + np.sin(x_test),'--', c='k',label='answer') # ground truth
+        plt.fill_between(x_test, mu-2 *var_diag, mu+2*var_diag, color='grey', alpha=.4)
+        plt.scatter(x_induce, np.zeros_like(x_induce), marker='o', label='induced var.')
+>>>>>>> 6942b08d6c7e590e266e2f63d896d384426dcbc5
         #plt.title("N: {}".format(e))
         plt.xlim(0,high_end)
         plt.xlim(0,high_end)
         #
         plt.ylim(-1.5,4)
+<<<<<<< HEAD
         
         plt.subplot(413)
         plt.plot(likelifood_array)
@@ -222,6 +271,26 @@ for i in range(0, SAMPLE):
         plt.xlabel("step")
         plt.ylabel("param")
         plt.savefig("images/gp_mcmc_%04d.png" % i)
+=======
+        plt.xlabel('x')
+        plt.xlabel('y')
+        plt.title('Gaussian process regression')
+        
+        plt.subplot(413)
+        plt.plot(likelifood_array[:i])
+        plt.xlabel("step")
+        plt.ylabel("likelifood")
+        plt.xlim(0,SAMPLE)
+        
+        plt.subplot(414)
+        plt.plot(sample_x[:i], c='Orange', label='theta2') # predictive line using GP regression
+        plt.plot(sample_y[:i], c='b', label='theta3') # predictive line using GP regression
+        plt.xlabel("step")
+        plt.ylabel("param")
+        plt.savefig("images/gp_hojo_mcmc_%04d.png" % i)
+        plt.legend(loc=2)
+        plt.xlim(0,SAMPLE)
+>>>>>>> 6942b08d6c7e590e266e2f63d896d384426dcbc5
         plt.close()
     
 
@@ -231,7 +300,11 @@ for i in range(0, SAMPLE):
 #plt.close()
 
 images = []
+<<<<<<< HEAD
 files = glob.glob("images/gp_mcmc*.png")
+=======
+files = glob.glob("images/gp_hojo_mcmc*.png")
+>>>>>>> 6942b08d6c7e590e266e2f63d896d384426dcbc5
 files.sort()
 #
 for f in files:
@@ -240,7 +313,11 @@ for f in files:
 
 images[0].save('gp_hojo_mcmc.gif',\
                save_all=True, append_images=images[1:],\
+<<<<<<< HEAD
 			   optimize=False, duration=500, loop=0)
+=======
+			   optimize=False, duration=200, loop=0)
+>>>>>>> 6942b08d6c7e590e266e2f63d896d384426dcbc5
 
 
 
