@@ -13,9 +13,9 @@ def rbf(x, x_dash,  theta1, theta2):
     return theta1 * np.exp(-1* ((x-x_dash)**2)/theta2) 
 
 
+mode = "pure" # pure or induce
 mode = "induce" # pure or induce
-#mode = "pure" # pure or induce
-#mode = "both" # pure or induce
+mode = "both" # pure or induce
 # whole Gaussian processs
 def gp_reg(x_train, y_train, x_induce, x_test, tau, sigma, eta):
     theta1 = np.exp(tau)
@@ -54,15 +54,11 @@ def gp_reg(x_train, y_train, x_induce, x_test, tau, sigma, eta):
                 for i,ix in enumerate(x_train)] for j,jx in enumerate(x_train)]
         K = np.array(K).reshape((N,N))
         #print("K.shape {}".format(K.shape))
-
-
         K_inv = LA.inv(K)
-
         detK = LA.det(K)
-
         yy = K_inv.dot(y_train)   # N,1
         likelifood = -1. * y_train.dot(yy) - np.log(detK)
-        #print("detK: %.4e" % detK)
+        ##print("detK: %.4e" % detK)
 
 
         K_NM = [[rbf(ix,jx,theta1,theta2)  \
@@ -74,9 +70,12 @@ def gp_reg(x_train, y_train, x_induce, x_test, tau, sigma, eta):
         K_MM = np.array(K_MM).reshape((M,M))
         K_MM_inv = LA.inv(K_MM)
 
-        lam = K - K_NM.dot(K_MM_inv).dot(K_NM.T)   # N,N
+        #lam = K - K_NM.dot(K_MM_inv).dot(K_NM.T)   # N,N
         #lam = [np.diag(K_NN)[i]  - (K_NM[i,:]).dot(K_MM_inv).dot(K_NM[i,:]) for i in range(N)]
-        #print("lam shape ", len(lam))
+        lam = [rbf(i,i,theta1,theta2) - (K_NM[i,:]).dot(K_MM_inv).dot(K_NM[i,:]) for i in range(N)]
+        #lam = [rbf(i,i,theta1,theta2) + theta3  - (K_NM[i,:]).dot(K_MM_inv).dot(K_NM[i,:]) for i in range(N)]
+        #:w
+        print("lam shape ", len(lam))
         #print(lam)
         lam_diag = np.diag(lam)
 
@@ -118,16 +117,28 @@ def gp_reg(x_train, y_train, x_induce, x_test, tau, sigma, eta):
         #print((K_MS.T).dot(LA.inv(SIGMA_u)).dot(K_MS))
 
         # from ref 45
-        SIGMA_f = K_SS - (K_MS.T).dot(K_MM_inv + Q_MM_inv).dot(K_MS) + theta3**2    # S,S
-        SIGMA_f_diag = np.diag(SIGMA_f)
+        #SIGMA_f = K_SS - (K_MS.T).dot(K_MM_inv + Q_MM_inv).dot(K_MS) + theta3**2    # S,S
+        #SIGMA_f_diag = np.diag(SIGMA_f)
 
         mu = f
         var = SIGMA_f
         var_diag = np.diag(SIGMA_f)
 
-        likelifood = stats.multivariate_normal.pdf(y_train, mean=K_NM.dot(K_MM_inv).dot(u), cov=lam + theta3**2*np.identity(N), allow_singular=True )
-        likelifood = np.log(likelifood)
-        print(likelifood)
+        #likelifood = stats.multivariate_normal.pdf(y_train, mean=K_NM.dot(K_MM_inv).dot(u), cov=lam_diag + theta3**2*np.identity(N), allow_singular=True )
+        #likelifood = np.log(likelifood)
+        #print(likelifood)
+
+        K_approx =K_NM.dot(Q_MM_inv).dot(K_NM.T)
+        print(np.linalg.matrix_rank(K_approx))
+        #K_approx += 1e-5
+        K_inv_approx = LA.inv(K_approx)
+        detK_approx = LA.det(K_approx)
+        #print(detK_approx)
+        yy_approx = K_inv_approx.dot(y_train)   # N,1
+        #likelifood = -1. * y_train.dot(yy_approx) - np.log(detK_approx)
+        print("detK: %.4e" % detK_approx)
+
+
 
     
     if ((mode == 'pure') | (mode=='both')):
@@ -167,7 +178,7 @@ def gp_reg(x_train, y_train, x_induce, x_test, tau, sigma, eta):
         #print("len(mu): ", len(mu))
     
     if (mode=='both'):
-        ii = np.random.randint(N)
+        ii = np.random.randint(S)
         print("i: %d, mu[i]: %.3f, f[i]: %.3f, var[i,i]: %.3f, sigma_f[i,i]: %.3f" % (ii, mu[ii], f[ii], var[ii,ii], SIGMA_f[ii,ii]))
         #print("i: %d, mu[i]: %.3f, var[i,i]: %.3ff" % (ii, mu[ii], var[ii,ii]))
 
@@ -184,14 +195,15 @@ def next(x, x_train, y_train, x_induce, x_test,sigma0, sigma1):
         x_new[1] = x[1] + np.random.normal(0, sigma1)
         lf_log,mu,var,var_diag = gp_reg(x_train, y_train, x_induce, x_test, 0, x[0], x[1])
         lf_new_log,mu_new,var_new,var_diag_new = gp_reg(x_train, y_train, x_induce, x_test, 0, x_new[0], x_new[1])
-        lf =np.exp(lf_log)
-        lf_new =np.exp(lf_new_log)
-        print("  mode: %s, lf: %.3e, lf_new: %.3e, p: %.2f" % (mode, lf, lf_new, lf_new/lf))
+        #lf =np.exp(lf_log)
+        #lf_new =np.exp(lf_new_log)
+        print("  mode: %s, lf_log: %.3e, lf_new_log: %.3e, p: %.2f" % (mode, lf_log, lf_new_log, np.exp(lf_new_log - lf_log)))
 
-        if np.random.uniform() <= min(lf_new/lf, 1):
+        #if np.random.uniform() <= min(lf_new/lf, 1):
+        if np.log(np.random.uniform()) <= min(lf_new_log - lf_log, 0):
         #if (lf_new > lf ):
             #print('    mcmc setp proceed') 
-            return lf_new, x_new, mu_new, var_diag_new
+            return lf_new_log, x_new, mu_new, var_diag_new
         #else:
             #print('    discarded')
 
@@ -207,7 +219,7 @@ x_sampler = np.random.rand(N) * high_end # [0,30]
 y_sampler = coef * x_sampler + np.sin(x_sampler) + np.random.normal(size=N) * eps
 
 ## inducing point
-M = 30
+M = 40
 lowside = np.min(x_sampler)
 highside = np.max(x_sampler)
 x_induce = np.linspace(lowside, highside, M)
