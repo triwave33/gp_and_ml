@@ -63,7 +63,7 @@ function gp_reg(x_train, y_train, x_test, t1, t2, t3)
 end
 
 
-# parameter
+# sampling parameter
 N = 20    # num of samples
 sigma = 0.2    # 
 coef = 0.5
@@ -76,6 +76,7 @@ theta1 = 1
 theta2 = 0.4
 theta3 = 0.3
 
+# execute gaussian process over samples
 mu, var, var_diag = gp_reg(x_sampler, y_sampler, x_test, theta1, theta2, theta3)
 scatter(x_sampler, y_sampler, label="sample", ylims=(0,5), markersize=2.5)
 
