@@ -49,9 +49,7 @@ function gp_reg(x_train, y_train, x_test, t1, t2, t3)
     s = zeros((M,M))
     for i in 1:M
         for j in 1:M
-            if i==j
                 s[i,j] = rbf(x_test[i], x_test[j], t1, t2)    
-            end
         end
     end
     
