@@ -1,14 +1,21 @@
 
-import Pkg
-Pkg.add("LinearAlgebra")
-Pkg.add("Random")
-Pkg.add("Plots")
+let
+    @eval using Pkg
+    pkgs = ["Plots"]
+    for pkg in pkgs
+        if Base.find_package(pkg) === nothing
+            Pkg.add(pkg)
+        end
+    end
+end
+
 
 using Plots
 gr()
 using Random
 rng = MersenneTwister(1234)
-using LinearAlgebra
+using LinearAlgebra:diag, I
+using Statistics
 
 ## define kernel function
 function rbf(x, x_dash, theta1=theta1, theta2=theta2)
@@ -22,36 +29,16 @@ function gp_reg(x_train, y_train, x_test, t1, t2, t3)
     M = length(x_test)
     
     # Kernel matrix between sample and sample
-    K = zeros((N,N))
-    for i in 1:N
-        for j in 1:N
-            # for diagonal components, noise is add
-            if i==j
-                K[i,j]= rbf(x_train[i], x_train[j],t1,t2) +t3
-            else
-                K[i,j]= rbf(x_train[i], x_train[j],t1,t2)
-            end
-        end
-    end
+    K = rbf.(x_train, x_train') + t3 * I
     
     K_inv= inv(K)
     yy = K_inv * (y_train)
     
     # Kernel Matrix between sample and test
-    k = zeros((N,M))
-    for i in 1:N
-        for j in 1:M
-            k[i,j] = rbf(x_train[i], x_test[j],t1,t2)
-        end
-    end
+    k = rbf.(x_train, x_test') 
         
     # Kernel Matrix between sample and test
-    s = zeros((M,M))
-    for i in 1:M
-        for j in 1:M
-                s[i,j] = rbf(x_test[i], x_test[j], t1, t2)    
-        end
-    end
+    s = rbf.(x_test, x_test') + t3 * I
     
     # results
     mu = transpose(k) * yy
@@ -60,22 +47,35 @@ function gp_reg(x_train, y_train, x_test, t1, t2, t3)
     mu, var, var_diag
 end
 
-
-# sampling parameter
-N = 20    # num of samples
+# parameter
+N = 10    # num of samples
 sigma = 0.2    # 
 coef = 0.5
 x_test = LinRange(0,7,200)
 x_sampler =  rand!(rng, zeros(N)) * 5
 y_sampler = coef * x_sampler + sin.(x_sampler) + randn!(rng, zeros(N)) * sigma
 
+# normalization
+y_std =  std(y_sampler)
+y_mean = mean(y_sampler)
+y_sampler_norm =( y_sampler .- y_mean) ./ y_std
+
+
 # parameter of kernel function
 theta1 = 1
 theta2 = 0.4
-theta3 = 0.3
+theta3 = 0.1
 
-# execute gaussian process over samples
 mu, var, var_diag = gp_reg(x_sampler, y_sampler, x_test, theta1, theta2, theta3)
+scatter(x_sampler, y_sampler, label="sample", ylims=(0,5), markersize=2.5)
+
+plot!(x_test, coef .* x_test + sin.(x_test), label="GroundTruth")
+plot!(x_test, mu, ribbon=(var_diag, var_diag), label="predict", fillalpha=0.2)
+
+mu_norm, var_norm, var_diag_norm = gp_reg(x_sampler, y_sampler_norm, x_test, theta1, theta2, theta3)
+
+mu = mu_norm .* y_std .+ y_mean
+var_diag = var_diag_norm 
 scatter(x_sampler, y_sampler, label="sample", ylims=(0,5), markersize=2.5)
 
 plot!(x_test, coef .* x_test + sin.(x_test), label="GroundTruth")
