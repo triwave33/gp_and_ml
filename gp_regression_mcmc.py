@@ -8,54 +8,68 @@ import glob
 from tqdm import tqdm
 import sys
 args = sys.argv
+import numba
 
-# kernel calc mode
+
+# kernel calc mode 
 mode = args[1] # 2D, list, for
 
+
 ## define kernel function 
+@numba.jit
 def rbf(x, x_dash,  theta1, theta2):
     return theta1 * np.exp(-1* ((x-x_dash)**2)/theta2) 
 
-
-def rbf_2Darray(x_2Darray, x_dash_2Darray, theta1, theta2):
-    return theta1 * np.exp(-1 * np.power((x_2Darray - x_dash_2Darray.T),2)/theta2)
-
-def kernel_matrix(x_train, x_test, theta1, theta2, theta3, mode, add_theta3):
+############ return kernel output as 2D matrix (3 ways)#########
+def rbf_for(x, x_dash, theta1, theta2, theta3, add_theta3):
+    K = np.zeros((len(x),len(x_dash)))
     if add_theta3:
-        assert len(x_train) == len(x_test)
-        if mode == '2D':
-            return rbf_2Darray(x_train, x_test, theta1, theta2) + np.identity(len(x_train)) * theta3
-        elif mode == 'list':
-            K = [[rbf(ix,jx,theta1,theta2) + theta3 if i==j else rbf(ix,jx, theta1,theta2) \
-               for i,ix in enumerate(x_test)] for j,jx in enumerate(x_train)]
-            K = np.array(K).reshape((len(x_train), len(x_test)))
-            return K
-        elif mode == 'for':
-            K = np.zeros((len(x_train),len(x_test)))
-            for i,ix in enumerate(x_train):
-                for j,jx in enumerate(x_test):
-                    if i==j:
-                        K[i,j] =rbf(ix,jx,theta1,theta2) + theta3
-                    else:
-                        K[i,j] =rbf(ix,jx,theta1,theta2)
-            return K
-    else:
-        if mode == '2D':
-            return rbf_2Darray(x_train, x_test, theta1, theta2)
-        elif mode == 'list':
-            K = [[rbf(ix,jx,theta1,theta2) + theta3 \
-               for i,ix in enumerate(x_test)] for j,jx in enumerate(x_train)]
-            K = np.array(K).reshape((len(x_train), len(x_test)))
-            return K
-        elif mode == 'for':
-            K = np.zeros((len(x_train),len(x_test)))
-            for i,ix in enumerate(x_train):
-                for j,jx in enumerate(x_test):
+        for i,ix in enumerate(x):
+            for j,jx in enumerate(x_dash):
+                if i==j:
+                    K[i,j] =rbf(ix,jx,theta1,theta2) + theta3
+                else:
                     K[i,j] =rbf(ix,jx,theta1,theta2)
-            return K
+    else:
+        for i,ix in enumerate(x):
+            for j,jx in enumerate(x_dash):
+                if i==j:
+                    K[i,j] =rbf(ix,jx,theta1,theta2) + theta3
+    return K
 
+def rbf_list(x, x_dash, theta1, theta2, theta3, add_theta3):
+    if add_theta3:
+        K = [[rbf(ix,jx,theta1,theta2) + theta3 if i==j else rbf(ix,jx, theta1,theta2) \
+           for i,ix in enumerate(x_dash)] for j,jx in enumerate(x)]
+        K = np.array(K).reshape((len(x), len(x_dash)))
+    else:
+        K = [[rbf(ix,jx,theta1,theta2) \
+           for i,ix in enumerate(x_dash)] for j,jx in enumerate(x)]
+        K = np.array(K).reshape((len(x), len(x_dash)))
+    return K
+
+def rbf_2Darray(x_2Darray, x_dash_2Darray, theta1, theta2, theta3, add_theta3):
+    if add_theta3:
+        assert len(x_2Darray) == len(x_dash_2Darray)
+        return theta1 * np.exp(-1 * np.square((x_2Darray - x_dash_2Darray.T))/theta2) + np.identity(len(x_2Darray)) + theta3
+    else:
+        return theta1 * np.exp(-1 * np.square((x_2Darray - x_dash_2Darray.T))/theta2)
+
+#########################################################################
+
+
+# return 2D kernel matrix according to mode ("for" or "list" or "2D") 
+@numba.jit
+def kernel_matrix(x, x_dash, theta1, theta2, theta3, mode, add_theta3):
+    if mode == '2D':
+        return rbf_2Darray(x, x_dash, theta1, theta2, theta3, add_theta3)
+    elif mode == 'list':
+        return rbf_list(x, x_dash, theta1, theta2, theta3, add_theta3)
+    elif mode == 'for':
+        return rbf_for(x, x_dash, theta1, theta2, theta3, add_theta3)
 
 # whole Gaussian processs
+@numba.jit
 def gp_reg(x_train, y_train, x_test, tau, sigma, eta):
     theta1 = np.exp(tau)
     theta2 = np.exp(sigma)
@@ -86,6 +100,8 @@ def gp_reg(x_train, y_train, x_test, tau, sigma, eta):
 
     return likelifood, mu, var, var_diag, K
 
+# core logic of single mcmc process
+@numba.jit
 def next(theta2, theta3, x_train, y_train, x_test, mcmc_s1, mcmc_s2,mode):
     while True:
         params_new = [0,0]
@@ -104,6 +120,9 @@ def next(theta2, theta3, x_train, y_train, x_test, mcmc_s1, mcmc_s2,mode):
         #else:
             #print('    discarded')
 
+
+# iterative mcmc process
+@numba.jit
 def mcmc(iter_num, theta2, theta3, x_sample, y_sample, x_test, mcmc_s1, mcmc_s2, mode, verbose):
     # initialize
     lf = 0
@@ -127,11 +146,11 @@ def mcmc(iter_num, theta2, theta3, x_sample, y_sample, x_test, mcmc_s1, mcmc_s2,
 
 
 ## make ground truth data
-N = 10
+N = 20
 high_end = 5
 eps = 0.3
 coef = 0.5
-line_space = 50
+line_space = 100
 x_test = np.linspace(0,high_end,line_space)
 x_sample = np.random.rand(N) * high_end # [0,30]
 y_sample = coef * x_sample + np.sin(x_sample) + np.random.normal(size=N) * eps
@@ -157,7 +176,7 @@ mcmc_s2 = 0.10
 
 
 BURNIN = 0
-SAMPLE = 1000
+SAMPLE = 25000
 
 save_interval =SAMPLE-1
 
@@ -167,6 +186,7 @@ burn_y = np.zeros(BURNIN)
 likelifood_array = np.zeros(BURNIN+SAMPLE)
 
 
+# exec MCMC
 theta2_array, theta3_array, lf_array, lf, mu, var_diag = mcmc(SAMPLE, theta2, theta3, x_sample, y_sample, x_test, mcmc_s1, mcmc_s2, mode, True)
 
 
@@ -206,6 +226,7 @@ def result_plot(x_s,y_s,x_t,t2,t3,mu,coef,var,mode):
     plt.close()
  
 result_plot(x_sample_1D,y_sample_1D,x_test_1D,theta2,theta3,mu,coef,var_diag,mode)
+
 #
 ##
 ##
