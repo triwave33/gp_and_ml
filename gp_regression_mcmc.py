@@ -7,8 +7,9 @@ from PIL import Image, ImageDraw
 import glob
 from tqdm import tqdm
 import sys
-args = sys.argv
 import numba
+import time
+args = sys.argv
 
 
 # kernel calc mode 
@@ -21,6 +22,7 @@ def rbf(x, x_dash,  theta1, theta2):
     return theta1 * np.exp(-1* ((x-x_dash)**2)/theta2) 
 
 ############ return kernel output as 2D matrix (3 ways)#########
+@numba.jit
 def rbf_for(x, x_dash, theta1, theta2, theta3, add_theta3):
     K = np.zeros((len(x),len(x_dash)))
     if add_theta3:
@@ -48,6 +50,7 @@ def rbf_list(x, x_dash, theta1, theta2, theta3, add_theta3):
         K = np.array(K).reshape((len(x), len(x_dash)))
     return K
 
+@numba.jit
 def rbf_2Darray(x_2Darray, x_dash_2Darray, theta1, theta2, theta3, add_theta3):
     if add_theta3:
         assert len(x_2Darray) == len(x_dash_2Darray)
@@ -59,7 +62,6 @@ def rbf_2Darray(x_2Darray, x_dash_2Darray, theta1, theta2, theta3, add_theta3):
 
 
 # return 2D kernel matrix according to mode ("for" or "list" or "2D") 
-@numba.jit
 def kernel_matrix(x, x_dash, theta1, theta2, theta3, mode, add_theta3):
     if mode == '2D':
         return rbf_2Darray(x, x_dash, theta1, theta2, theta3, add_theta3)
@@ -69,14 +71,13 @@ def kernel_matrix(x, x_dash, theta1, theta2, theta3, mode, add_theta3):
         return rbf_for(x, x_dash, theta1, theta2, theta3, add_theta3)
 
 # whole Gaussian processs
-@numba.jit
 def gp_reg(x_train, y_train, x_test, tau, sigma, eta):
     theta1 = np.exp(tau)
     theta2 = np.exp(sigma)
     theta3 = np.exp(eta)
 
-    N = len(x_train)
-    M = len(x_test)
+    #N = len(x_train)
+    #M = len(x_test)
 
     K = kernel_matrix(x_train, x_train, theta1, theta2, theta3, mode, True)
 
@@ -101,7 +102,6 @@ def gp_reg(x_train, y_train, x_test, tau, sigma, eta):
     return likelifood, mu, var, var_diag, K
 
 # core logic of single mcmc process
-@numba.jit
 def next(theta2, theta3, x_train, y_train, x_test, mcmc_s1, mcmc_s2,mode):
     while True:
         params_new = [0,0]
@@ -122,7 +122,6 @@ def next(theta2, theta3, x_train, y_train, x_test, mcmc_s1, mcmc_s2,mode):
 
 
 # iterative mcmc process
-@numba.jit
 def mcmc(iter_num, theta2, theta3, x_sample, y_sample, x_test, mcmc_s1, mcmc_s2, mode, verbose):
     # initialize
     lf = 0
@@ -187,65 +186,16 @@ likelifood_array = np.zeros(BURNIN+SAMPLE)
 
 
 # exec MCMC
-theta2_array, theta3_array, lf_array, lf, mu, var_diag = mcmc(SAMPLE, theta2, theta3, x_sample, y_sample, x_test, mcmc_s1, mcmc_s2, mode, True)
+print("Mode: " + mode)
+print("Now calculating...")
+time_before = time.time()
+theta2_array, theta3_array, lf_array, lf, mu, var_diag = mcmc(SAMPLE, theta2, theta3, x_sample, y_sample, x_test, mcmc_s1, mcmc_s2, mode, False)
+time_after = time.time()
+elapsed_time = time_after - time_before
 
+# print out execution time
+print("elapsed_time: %.2f" % elapsed_time)
 
-
-
-def result_plot(x_s,y_s,x_t,t2,t3,mu,coef,var,mode):
-    fig = plt.figure(figsize=(6,9))
-
-    plt.subplot(411)
-
-    plt.plot(t2, t3, marker = 'o', markersize=1)
-    plt.xlabel('sigma')
-    plt.ylabel('eta')
-    
-    plt.subplot(412)
-    plt.scatter(x_s, y_s, marker='x') # plot of train data
-    plt.plot(x_t, mu, c='Orange') # predictive line using GP regression
-    plt.plot(x_t, coef * x_t + np.sin(x_t),'--', c='k') # ground truth
-    plt.fill_between(x_t, mu-2 *var, mu+2*var, color='grey', alpha=.4)
-    #plt.title("N: {}".format(e))
-    plt.xlim(0,high_end)
-    plt.xlim(0,high_end)
-    #
-    plt.ylim(-1.5,4)
-    
-    plt.subplot(413)
-    plt.plot(lf_array)
-    plt.xlabel("step")
-    plt.xlabel("likelifood")
-    
-    plt.subplot(414)
-    plt.plot(t2, c='Orange', label='theta2') # predictive line using GP regression
-    plt.plot(t3, c='b', label='theta3') # predictive line using GP regression
-    plt.xlabel("step")
-    plt.ylabel("param")
-    plt.savefig("images/gp_mcmc_%s.png" % mode)
-    plt.close()
- 
-result_plot(x_sample_1D,y_sample_1D,x_test_1D,theta2,theta3,mu,coef,var_diag,mode)
-
-#
-##
-##
-##plt.savefig("images/gp_regression_grad_%04d.png" % i)
-##plt.close()
-#
-#
-#images = []
-#files = glob.glob("images/gp_mcmc*.png")
-#files.sort()
-##
-#for f in files:
-#    im = Image.open(f)
-#    images.append(im)
-#
-#images[0].save('gp_mcmc.gif',\
-#               save_all=True, append_images=images[1:],\
-#			   optimize=False, duration=500, loop=0)
-#
 
 
 
